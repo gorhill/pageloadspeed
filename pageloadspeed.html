@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    }
+*[disabled] {
+    opacity: 0.5;
+    }
+p {
+    margin: 0.5em 0;
+    }
+p:first-child {
+    margin-top: 0;
+    }
+p:last-child {
+    margin-bottom: 0;
+    }
+#toolbar {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    }
+#toolbar > div:first-of-type {
+    border: 0;
+    border-bottom: 1px solid gray;
+    margin: 0;
+    padding: 4px;
+    }
+#page {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    position: absolute;
+    width: 100%;
+    }
+#url {
+    width: 25%;
+    }
+#isValid {
+    color: red;
+    }
+#isValid.valid {
+    color: green;
+    }
+#progress {
+    background-color: #eee;
+    border: 0;
+    box-sizing: border-box;
+    display: none;
+    height: 6px;
+    margin: 0;
+    padding: 0;
+    width: 100%
+    }
+body.benchmarking #progress {
+    display: block;
+    }
+#progress > div {
+    background-color: blue;
+    height: 100%;
+    width: 0%;
+    }
+</style>
+<title>Page load speed tool</title>
+</head>
+<body>
+<div id="toolbar">
+    <div>
+    <p>URL: <input id="url" type="url">
+            <button id="reload" type="button">Reload</button>
+            <button id="benchmark" type="button" title="Page will automatically reloads until avg result is valid.">Benchmark</button>
+            <button id="stop" type="button" disabled>Stop</button>
+    <p>Average (<span id="isValid">invalid</span>): <span id="avgTime">?</span> ms (<span id="normalCount">?</span>/<span id="totalCount">?</span> iterations)&emsp;
+       Last reload: <span id="lastTime">?</span> ms&emsp;
+       <button id="reset" type="button">Reset</button>&emsp;
+       <a href="pageloadspeed-details.html" target="_blank">Info</a>
+    </div>
+    <div id="progress"><div></div></div>
+</div>
+<iframe id="page" src=""></iframe>
+<script>
+(function() {
+    var lastURL = '';
+    var docu = document;
+    var body = docu.body;
+    var toolbar = docu.getElementById('toolbar');
+    var page = docu.getElementById('page');
+    var inputURL = docu.getElementById('url');
+    var reloadButton = docu.getElementById('reload');
+    var benchmarkButton = docu.getElementById('benchmark');
+    var stopButton = docu.getElementById('stop');
+    var resetButton = docu.getElementById('reset');
+    var alink = docu.createElement('a');
+
+    var resizeFrame = function() {
+        var ph = Math.max(docu.documentElement.clientHeight, window.innerHeight || 0);
+        var crect = toolbar.getBoundingClientRect();
+        page.style.setProperty('top', crect.bottom + 'px');
+        page.style.setProperty('height', (ph - crect.height) + 'px');
+    };
+    resizeFrame();
+
+    var syncWidgets = function(on) {
+        if ( loading ) {
+            inputURL.setAttribute('disabled', '');
+            reloadButton.setAttribute('disabled', '');
+            benchmarkButton.setAttribute('disabled', '');
+            stopButton.removeAttribute('disabled');
+            resetButton.setAttribute('disabled', '');
+            body.classList.add('reloading');
+        } else {
+            inputURL.removeAttribute('disabled');
+            reloadButton.removeAttribute('disabled');
+            benchmarkButton.removeAttribute('disabled', '');
+            stopButton.setAttribute('disabled', '');
+            resetButton.removeAttribute('disabled');
+            body.classList.remove('reloading');
+        }
+        resizeFrame();
+    };
+
+    var t0 = 0;
+    var t1 = 0;
+    var dt = 0;
+    var results = [];
+    var spread = 0;
+    var goodResults = [];
+    var avgValid = false;
+    var loading = false;
+    var benchmarking = false;
+
+    var stddev = function(vv) {
+        var vvlen = vv.length,
+            i, v;
+        var μ = 0;
+        for ( i = 0; i < vvlen; i++ ) {
+            μ += vv[i];
+        }
+        μ /= vvlen;
+        var σ = 0;
+        for ( i = 0; i < vvlen; i++ ) {
+            v = vv[i] - μ;
+            σ += v * v;
+        }
+        return {
+            μ: μ,
+            σ: Math.sqrt(σ / vvlen)
+        };
+    };
+
+    var goodAverage = function() {
+        var r1 = stddev(results);
+        goodResults.length = 0;
+        var l = r1.μ - r1.σ,
+            h = r1.μ + r1.σ,
+            v;
+        for ( var i = 0; i < results.length; i++ ) {
+            v = results[i];
+            if ( v >= l && v <= h ) {
+                goodResults.push(v);
+            }
+        }
+        goodResults = goodResults.sort(function(a, b) {
+            return a - b;
+        }).slice(0, 11);
+        var r2 = stddev(goodResults);
+        spread = r2.σ / r2.μ;
+        avgValid = goodResults.length >= 11 && spread <= 0.10;
+        return r2.μ;
+    };
+
+    var resetResults = function() {
+        t0 = t1 = dt = 0;
+        results.length = 0;
+        reportResults();
+    };
+
+    var recordResult = function() {
+        t1 = performance.now();
+        dt = t1 - t0;
+        results.push(dt);
+        reportResults();
+    };
+
+    var reportResults = function() {
+        var elem = docu.getElementById('lastTime');
+        elem.textContent = dt ? dt.toFixed(2) : '?';
+        var v = goodAverage();
+        elem = docu.getElementById('avgTime');
+        elem.textContent = v ? v.toFixed(2) : '?';
+        var count = results.length;
+        elem = docu.getElementById('isValid');
+        elem.classList.toggle('valid', avgValid);
+        elem.textContent = avgValid ? 'valid' : 'invalid';
+        elem = docu.getElementById('normalCount');
+        elem.textContent = goodResults.length ? goodResults.length : '?';
+        elem = docu.getElementById('totalCount');
+        elem.textContent = count ? count : '?';
+        if ( !benchmarking ) {
+            return;
+        }
+        var progress = Math.min(goodResults.length / 11, 1.0) *
+                       Math.min(1.0 - spread, 0.9) / 0.9 *
+                       100;
+        docu.querySelector('#progress > div')
+            .style
+            .setProperty('width', progress + '%');
+    };
+
+    var reIsHTTP = /^[a-z]+:\/\//;
+    var reHasWordChar = /\w/;
+
+    var stopAll = function() {
+        stopBenchmarking();
+        stopLoading();
+        syncWidgets();
+    };
+
+    var benchmarkTimer = null;
+    var benchmarkTimerHandler = function() {
+        benchmarkTimer = null;
+        startLoading();
+    };
+
+    var startBenchmarking = function() {
+        if ( benchmarking ) {
+            return;
+        }
+        resetResults();
+        benchmarking = true;
+        body.classList.add('benchmarking');
+        startLoading();
+    };
+
+    var stopBenchmarking = function() {
+        if ( benchmarkTimer !== null ) {
+            clearTimeout(benchmarkTimer);
+            benchmarkTimer = null;
+        }
+        if ( !benchmarking ) {
+            return;
+        }
+        benchmarking = false;
+        body.classList.remove('benchmarking');
+        docu.querySelector('#progress > div')
+            .style
+            .setProperty('width', '0%');
+    };
+
+    var loadTimer = null;
+    var loadTimerHandler = function() {
+        loadTimer = null;
+        stopLoading();
+    };
+
+    var startLoading = function() {
+        if ( loading ) {
+            return;
+        }
+        loading = true;
+        syncWidgets();
+        var url = inputURL.value;
+        if ( reHasWordChar.test(url) && reIsHTTP.test(url) === false ) {
+            alink.href = 'http://' + url;
+            url = alink.href;
+            inputURL.value = url;
+        }
+        if ( url !== lastURL ) {
+            resetResults();
+            lastURL = url;
+        }
+        loadTimer = setTimeout(loadTimerHandler, 30000);
+        t0 = performance.now();
+        page.setAttribute('src', url);
+    };
+
+    var stopLoading = function() {
+        if ( loadTimer !== null ) {
+            clearTimeout(loadTimer);
+            loadTimer = null;
+        }
+        if ( !loading ) {
+            return;
+        }
+        loading = false;
+        if ( benchmarking ) {
+            if ( !avgValid ) {
+                benchmarkTimer = setTimeout(
+                    benchmarkTimerHandler,
+                    Math.ceil(Math.min(Math.max(dt * 10, 1000), 5000))
+                );
+                return;
+            }
+            stopBenchmarking();
+        }
+        syncWidgets();
+    };
+
+    var onPageLoaded = function() {
+        if ( loading ) {
+            recordResult();
+        }
+        stopLoading();
+    };
+
+    reloadButton.addEventListener('click', startLoading);
+    page.addEventListener('load', onPageLoaded);
+    benchmarkButton.addEventListener('click', startBenchmarking);
+    stopButton.addEventListener('click', stopAll);
+    resetButton.addEventListener('click', function() {
+        resetResults();
+        syncWidgets();
+    });
+    window.addEventListener('resize', resizeFrame);
+})();
+</script>
+</body>
+</html>

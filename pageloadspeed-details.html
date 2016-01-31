@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+body {
+    border: 0;
+    margin: 0;
+    padding: 8px;
+    }
+</style>
+<title>Page load speed tool: documentation</title>
+</head>
+<body>
+<p>Randomly ordered details to mind when benchmarking a page load time:</p>
+<ul>
+<li>The averaged timing is valid <b>if and only if</b> it is labelled <b>valid</b>.
+<li>If comparing two or more blockers:
+    <ul>
+    <li>Be sure the benchmarked blocker is the only active extension.
+    <li>To benchmark another blocker, disable the current one, enable the other blocker, then ...
+        <ul>
+        <li>Chromium: open the page load speed tool <a href="pageloadspeed.html" target="_blank">in a new tab</a>.
+        <li>Firefox: restart the browser.
+        </ul>
+    <li>Configure them in a similar way.
+    </ul>
+<li>Clicking the <i>Benchmark</i> button will launch an automated benchmark session which will end when the average page load time is marked as "valid".
+<li>If you want to bypass the browser cache, open de developer console and check the <i>"disable cache when dev console is opened"</i> setting of your browser.
+    <ul>
+    <li>Bypassing the cache can lead to more erratic results though, as the measurements become more sensitive to arbitrary network latency. 
+    </ul>
+<li>There is a timeout for when a page never completes loading: 30 seconds.
+    <ul>
+    <li>The result will be discarded in such case.
+    </ul>
+<li>This page load speed tool works only for web pages which accept to be embedded in a frame.
+<li>Since the web page to measure is inside a frame, it may not rendered correctly if you block 3rd-party cookies (a good idea in general).
+<li>This tool can also be used to compare different configurations for the same blocker. For examples:
+    <ul>uBlock Origin <a href="https://github.com/gorhill/uBlock/wiki/Blocking-mode">easy mode vs. medium mode</a>.
+    <li>Adblock Plus with "acceptable ads" enabled versus "acceptable ads" disabled.
+    </ul>
+<li>When you share the results, you should provide all the information:
+    <ul>
+    <li>Browser, version, relevant settings (click-to-play, block 3rd-party cookies, etc.)
+    <li>Blocker, version, filter lists, settings.
+    <li>Which URL was benchmarked.
+    <li>Disclose the whole average result of the benchmark, for example: <code>Average (valid): 832.01 ms (10/13 iterations)</code>.
+    <li>Etc.
+    </ul>
+<li>Keep in mind uBlock Origin disables pre-fetching by default -- most other blockers do not modify this browser setting.
+    <ul>
+    <li>I haven't confirmed so far that this makes a significant difference in page load speed.
+    </ul>
+<li>The page load speed tool is completely self-contained, just look at the page source to see how it works.
+    <ul>
+    <li>Being self-contained means you can save a local copy onto your computer and launch from there.
+    <li>There is a prototypical feel to the code, I emphasized on it working, not being elegant. I may work more on it as time allows.
+    </ul>
+</ul>
+</body>
+</html>
